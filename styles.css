@@ -1,6 +1,12 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
     font-family: Arial, sans-serif;
-    max-width: 600px;
+    max-width: 500px;
     margin: 20px auto;
     padding: 20px;
     background-color: #f5f5f5;
@@ -14,21 +20,42 @@ body {
 }
 
 h1 {
-    color: #333;
     margin-bottom: 20px;
+    color: #333;
+}
+
+.video-container {
+    position: relative;
+    width: 100%;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: #000;
 }
 
 #video {
     width: 100%;
-    max-width: 400px;
-    height: 300px;
-    border: 2px solid #ddd;
-    border-radius: 4px;
+    height: auto;
+    min-height: 300px;
+    display: block;
+}
+
+.camera-off {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background-color: #f0f0f0;
+    color: #666;
 }
 
 .controls {
-    margin: 20px 0;
+    margin-bottom: 20px;
 }
 
 .btn {
@@ -36,23 +63,10 @@ h1 {
     margin: 5px;
     border: none;
     border-radius: 4px;
-    font-size: 14px;
+    background-color: #007bff;
+    color: white;
     cursor: pointer;
-}
-
-.btn-start {
-    background-color: #4CAF50;
-    color: white;
-}
-
-.btn-detect {
-    background-color: #FF9800;
-    color: white;
-}
-
-.btn-stop {
-    background-color: #f44336;
-    color: white;
+    font-size: 14px;
 }
 
 .btn:disabled {
@@ -60,63 +74,40 @@ h1 {
     cursor: not-allowed;
 }
 
-.results {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    border: 1px solid #ddd;
-}
-
-.results h3 {
-    margin-top: 0;
-    color: #333;
-}
-
-.prediction {
-    font-size: 18px;
-    font-weight: bold;
-    margin: 10px 0;
-    color: #2196F3;
-}
-
-.confidence {
-    font-size: 14px;
-    color: #666;
-}
-
 .status {
-    margin: 15px 0;
+    margin: 10px 0;
     padding: 10px;
     border-radius: 4px;
-    display: none;
-}
-
-.status.success {
-    background-color: #dff0d8;
-    color: #3c763d;
-    border: 1px solid #d6e9c6;
+    background-color: #e9ecef;
+    color: #495057;
+    min-height: 20px;
 }
 
 .status.error {
-    background-color: #f2dede;
-    color: #a94442;
-    border: 1px solid #ebccd1;
+    background-color: #f8d7da;
+    color: #721c24;
 }
 
-.status.info {
-    background-color: #d9edf7;
-    color: #31708f;
-    border: 1px solid #bce8f1;
+.status.success {
+    background-color: #d4edda;
+    color: #155724;
 }
 
-.camera-off {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 300px;
-    background: #f0f0f0;
-    color: #666;
-    border: 2px solid #ddd;
+.results {
+    padding: 15px;
+    background-color: #f8f9fa;
     border-radius: 4px;
+    text-align: left;
+}
+
+#prediction {
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 5px;
+    color: #007bff;
+}
+
+#confidence {
+    font-size: 14px;
+    color: #666;
 }

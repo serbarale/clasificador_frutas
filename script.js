@@ -1,255 +1,276 @@
-// Variables globales
-let video = document.getElementById('video');
-let stream = null;
-let model = null;
-let isDetecting = false;
-let detectionInterval = null;
+// Variables globales para almacenar elementos del DOM y estado de la aplicación
+let video, startBtn, stopBtn, status, cameraOff, results, prediction, confidence;
+let stream = null;           // Stream de la cámara
+let model = null;            // Modelo de TensorFlow.js cargado
+let detectionInterval = null; // Intervalo para detección automática
 
-// Elementos
-const startBtn = document.getElementById('startBtn');
-const detectBtn = document.getElementById('detectBtn');
-const stopBtn = document.getElementById('stopBtn');
-const status = document.getElementById('status');
-const cameraOff = document.getElementById('cameraOff');
-const results = document.getElementById('results');
-const prediction = document.getElementById('prediction');
-const confidence = document.getElementById('confidence');
-
-// Clases de frutas
-const fruitClasses = [
-    'Apple', 'Banana', 'Carambola', 'Guava', 'Kiwi', 'Mango', 
-    'Orange', 'Peach', 'Pear', 'Persimmon', 'Pitaya', 'Plum', 
-    'Pomegranate', 'Tomatoes', 'Muskmelon'
+// Configuración de la aplicación
+const MODEL_PATH = './frutas_cnn_savedmodel_tfjs/model.json'; // Ruta al modelo
+const INPUT_SIZE = { width: 320, height: 258, channels: 3 };   // Tamaño de entrada del modelo
+// Lista de frutas que puede detectar el modelo (en orden específico)
+const FRUIT_CLASSES = [
+    'Manzana', 'Plátano', 'Carambola', 'Guayaba', 'Kiwi', 'Mango', 
+    'Naranja', 'Durazno', 'Pera', 'Caqui', 'Pitaya', 'Ciruela', 
+    'Granada', 'Tomate', 'Melón'
 ];
 
-// Canvas secundario para procesamiento del modelo
-const modelCanvas = document.getElementById('modelCanvas');
-const modelCtx = modelCanvas.getContext('2d');
-
 // Funciones de utilidad
+
+// Muestra mensajes de estado en la interfaz
 function showStatus(message, type = 'info') {
-    status.className = `status ${type}`;
-    status.textContent = message;
-    status.style.display = 'block';
-    
-    setTimeout(() => {
-        status.style.display = 'none';
-    }, 3000);
+    if (!status) return; // Si no existe el elemento status, no hace nada
+    status.className = `status ${type}`; // Cambia la clase CSS para el color
+    status.textContent = message;        // Actualiza el texto del mensaje
 }
 
-function updateButtons(cameraActive) {
-    startBtn.disabled = cameraActive;
-    detectBtn.disabled = !cameraActive || !model;
-    stopBtn.disabled = !cameraActive;
+// Habilita/deshabilita botones según el estado de la aplicación
+function updateButtons(cameraActive = false, modelLoaded = false) {
+    if (startBtn) startBtn.disabled = cameraActive;  // Deshabilita "Iniciar" si cámara está activa
+    if (stopBtn) stopBtn.disabled = !cameraActive;   // Deshabilita "Detener" si cámara no está activa
 }
 
-// Iniciar cámara
+// Carga del modelo de inteligencia artificial
+async function loadModel() {
+    try {
+        // Muestra mensaje de carga
+        showStatus('Cargando modelo...', 'info');
+        console.log('Cargando modelo desde:', MODEL_PATH);
+        
+        // Carga el modelo desde el archivo JSON
+        model = await tf.loadGraphModel(MODEL_PATH);
+        
+        // Confirma que se cargó correctamente
+        console.log('Modelo cargado exitosamente');
+        showStatus('Modelo cargado', 'success');
+        updateButtons(stream !== null, true); // Actualiza estado de botones
+        
+        return true; // Retorna éxito
+    } catch (error) {
+        // Si hay error, lo muestra y retorna falso
+        console.error('Error cargando modelo:', error);
+        showStatus('Error cargando modelo', 'error');
+        return false;
+    }
+}
+
+// Gestión de cámara
+
+// Inicia la cámara del dispositivo
 async function startCamera() {
     try {
-        showStatus('Accediendo a la cámara...', 'info');
+        showStatus('Iniciando camara...', 'info');
         
-        stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: false
+        // Configuración de la cámara
+        const constraints = {
+            audio: false,                          // No necesita audio
+            video: {
+                width: { ideal: 640 },             // Ancho preferido
+                height: { ideal: 480 },            // Alto preferido
+                facingMode: { ideal: 'environment' } // Cámara trasera si está disponible
+            }
+        };
+        
+        // Solicita acceso a la cámara
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream; // Conecta el stream al elemento video
+        
+        // Espera a que el video esté listo
+        await new Promise(resolve => {
+            video.onloadedmetadata = resolve;
         });
-
-        video.srcObject = stream;
+        
+        // Muestra el video y oculta el mensaje de cámara inactiva
         video.style.display = 'block';
         cameraOff.style.display = 'none';
         
-        showStatus('Cámara iniciada', 'success');
-        updateButtons(true);
+        // Actualiza el estado de los botones
+        updateButtons(true, model !== null);
+        showStatus('Camara activa', 'success');
         
-        // Iniciar detección automática si el modelo está cargado
+        // Si el modelo ya está cargado, inicia la detección automática
         if (model) {
-            setTimeout(() => {
-                startDetection();
-                showStatus('🔍 Detección automática activada', 'info');
-            }, 1000);
+            startDetection();
         }
-
+        
     } catch (error) {
-        console.error('Error:', error);
-        showStatus('Error al acceder a la cámara', 'error');
-        updateButtons(false);
+        console.error('Error iniciando camara:', error);
+        showStatus('Error iniciando camara', 'error');
     }
 }
 
-// Detener cámara
+// Detiene la cámara y limpia todo
 function stopCamera() {
     if (stream) {
-        // Detener detección
+        // Detiene la detección automática
         stopDetection();
         
+        // Detiene todos los tracks de video
         stream.getTracks().forEach(track => track.stop());
         stream = null;
         
-        video.srcObject = null;
+        // Oculta el video y muestra el mensaje de cámara inactiva
         video.style.display = 'none';
-        cameraOff.style.display = 'block';
+        video.srcObject = null;
+        cameraOff.style.display = 'flex';
         
-        showStatus('Cámara detenida', 'info');
-        updateButtons(false);
+        // Actualiza botones y estado
+        updateButtons(false, model !== null);
+        showStatus('Camara detenida', 'info');
+        
+        // Limpia los resultados mostrados
+        prediction.textContent = '-';
+        confidence.textContent = '-';
     }
 }
 
-// Cargar modelo TensorFlow.js
-async function loadModel() {
-    try {
-        showStatus('Cargando modelo de IA...', 'info');
-        
-        // Cargar el modelo desde la carpeta_salida
-        model = await tf.loadLayersModel('./carpeta_salida/model.json');
-        
-        console.log('Modelo cargado exitosamente');
-        console.log('Input shape:', model.inputs[0].shape);
-        console.log('Output shape:', model.outputs[0].shape);
-        
-        showStatus('Modelo de IA cargado correctamente', 'success');
-        
-        // Actualizar botones si la cámara ya está activa
-        if (stream) {
-            updateButtons(true);
-        }
-        
-    } catch (error) {
-        console.error('Error cargando el modelo:', error);
-        showStatus('Error al cargar el modelo de IA', 'error');
-        model = null;
-    }
-}
+// Procesamiento de imagen para el modelo
 
-// Procesar imagen para el modelo (320x258)
-function preprocessImageForModel(videoElement) {
-    return tf.tidy(() => {
-        // Dibujar el video actual en el canvas oculto con el tamaño requerido
-        modelCtx.drawImage(videoElement, 0, 0, 320, 258);
+// Convierte la imagen del video al formato que necesita el modelo
+function preprocessImage(videoElement) {
+    return tf.tidy(() => { // tf.tidy() limpia automáticamente tensores temporales
+        // Convierte la imagen del video a tensor (matriz numérica)
+        let tensor = tf.browser.fromPixels(videoElement, INPUT_SIZE.channels);
         
-        // Convertir canvas a tensor
-        let tensor = tf.browser.fromPixels(modelCanvas);
+        // Redimensiona la imagen al tamaño que espera el modelo (320x258)
+        tensor = tf.image.resizeBilinear(tensor, [INPUT_SIZE.width, INPUT_SIZE.height]);
         
-        // Normalizar valores de 0-255 a 0-1
+        // Normaliza los valores de píxeles de 0-255 a 0-1
         tensor = tensor.div(255.0);
         
-        // Agregar dimensión de lote [1, 320, 258, 3]
+        // Agrega una dimensión extra para el "batch" (lote de imágenes)
         tensor = tensor.expandDims(0);
         
-        return tensor;
+        return tensor; // Retorna el tensor listo para el modelo
     });
 }
 
-// Realizar predicción
-async function predictFruit(showInResults = false) {
-    if (!model || !stream) return;
+// Función principal de predicción
+
+// Analiza la imagen actual del video y predice qué fruta es
+async function predictFruit() {
+    // Verifica que todo esté listo antes de hacer predicción
+    if (!model || !stream || !video) return;
+    
+    // Verifica que el video tenga contenido válido
+    if (video.readyState < 2 || video.videoWidth === 0 || video.videoHeight === 0) return;
     
     try {
-        showStatus('🔍 Analizando...', 'info');
+        // Prepara la imagen para el modelo
+        const inputTensor = preprocessImage(video);
         
-        // Preprocesar imagen
-        const preprocessed = preprocessImageForModel(video);
+        // Ejecuta el modelo con la imagen
+        const pred = model.predict(inputTensor);
         
-        // Realizar predicción
-        const predictions = await model.predict(preprocessed).data();
-        
-        // Encontrar la clase con mayor probabilidad
-        const maxIndex = predictions.indexOf(Math.max(...predictions));
-        const confidenceValue = predictions[maxIndex];
-        const predictedFruit = fruitClasses[maxIndex];
-        
-        // Obtener top 3 predicciones
-        const top3 = Array.from(predictions)
-            .map((conf, index) => ({ fruit: fruitClasses[index], confidence: conf }))
-            .sort((a, b) => b.confidence - a.confidence)
-            .slice(0, 3);
-        
-        if (showInResults) {
-            // Mostrar en área de resultados detallada
-            results.style.display = 'block';
-            
-            if (confidenceValue > 0.3) {
-                const percentage = (confidenceValue * 100).toFixed(1);
-                prediction.innerHTML = `<strong>${predictedFruit}</strong>`;
-                
-                let confidenceHtml = `<strong>Confianza: ${percentage}%</strong><br><br>`;
-                confidenceHtml += '<strong>Top 3 predicciones:</strong><br>';
-                top3.forEach((item, index) => {
-                    const percent = (item.confidence * 100).toFixed(1);
-                    confidenceHtml += `${index + 1}. ${item.fruit}: ${percent}%<br>`;
-                });
-                confidence.innerHTML = confidenceHtml;
-                
-                showStatus(`✅ Detectado: ${predictedFruit}`, 'success');
-            } else {
-                prediction.innerHTML = '<strong>No detectado</strong>';
-                confidence.innerHTML = 'Confianza muy baja. Intenta acercar una fruta a la cámara.';
-                showStatus('❌ No se pudo detectar fruta', 'error');
-            }
+        // Obtiene los datos numéricos de la predicción
+        let predictionData;
+        if (Array.isArray(pred)) {
+            // Si retorna array, toma el primer elemento
+            predictionData = await pred[0].data();
+            pred.forEach(tensor => tensor.dispose()); // Limpia memoria
         } else {
-            // Mostrar solo en status (modo automático)
-            if (confidenceValue > 0.6) {
-                const percentage = (confidenceValue * 100).toFixed(1);
-                showStatus(`🍎 ${predictedFruit} (${percentage}%)`, 'success');
-            }
+            // Si es un solo tensor
+            predictionData = await pred.data();
+            pred.dispose(); // Limpia memoria
         }
         
-        // Limpiar tensor de memoria
-        preprocessed.dispose();
+        // Limpia el tensor de entrada
+        inputTensor.dispose();
+        
+        // Convierte los resultados a formato legible
+        const results = Array.from(predictionData)
+            .map((confidence, index) => ({
+                fruit: FRUIT_CLASSES[index], // Nombre de la fruta
+                confidence: confidence        // Nivel de confianza (0-1)
+            }))
+            .sort((a, b) => b.confidence - a.confidence); // Ordena por confianza
+        
+        // Toma el resultado con mayor confianza
+        const best = results[0];
+        const percentage = (best.confidence * 100).toFixed(1); // Convierte a porcentaje
+        
+        // Muestra el resultado en la interfaz
+        prediction.textContent = best.fruit;
+        confidence.textContent = `${percentage}%`;
+        
+        // Si la confianza es alta (>50%), muestra mensaje de éxito
+        if (best.confidence > 0.5) {
+            showStatus(`Detectado: ${best.fruit}`, 'success');
+        }
         
     } catch (error) {
-        console.error('Error en predicción:', error);
-        showStatus('Error al analizar imagen', 'error');
+        console.error('Error en prediccion:', error);
     }
 }
 
-// Iniciar detección en tiempo real
+// Sistema de detección automática
+
+// Inicia la detección continua cada segundo
 function startDetection() {
-    if (!model || isDetecting) return;
+    if (detectionInterval) return; // Si ya está ejecutándose, no hace nada
     
-    isDetecting = true;
-    
-    // Realizar predicción cada 2 segundos
-    detectionInterval = setInterval(() => {
-        if (stream && model) {
-            predictFruit();
-        }
-    }, 2000);
-    
-    console.log('Detección iniciada');
+    // Ejecuta predictFruit() cada 1000ms (1 segundo)
+    detectionInterval = setInterval(async () => {
+        await predictFruit();
+    }, 1000);
 }
 
-// Detener detección
+// Detiene la detección automática
 function stopDetection() {
     if (detectionInterval) {
-        clearInterval(detectionInterval);
-        detectionInterval = null;
+        clearInterval(detectionInterval); // Cancela el intervalo
+        detectionInterval = null;         // Resetea la variable
     }
-    isDetecting = false;
-    console.log('Detección detenida');
 }
 
-// Inicialización cuando el DOM esté listo
-function initializeApp() {
-    // Obtener elementos del DOM
-    video = document.getElementById('video');
-    const startBtn = document.getElementById('startBtn');
-    const stopBtn = document.getElementById('stopBtn');
-    const status = document.getElementById('status');
-    const cameraOff = document.getElementById('cameraOff');
-    
-    // Event listeners
-    startBtn.addEventListener('click', startCamera);
-    detectBtn.addEventListener('click', () => predictFruit(true));
-    stopBtn.addEventListener('click', stopCamera);
+// Función principal de inicialización
 
-    // Verificar soporte
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        showStatus('Tu navegador no soporta acceso a la cámara', 'error');
-        startBtn.disabled = true;
+// Configura toda la aplicación cuando la página se carga
+async function init() {
+    try {
+        // Obtiene referencias a todos los elementos HTML necesarios
+        video = document.getElementById('video');           // Elemento video para mostrar cámara
+        startBtn = document.getElementById('startBtn');     // Botón "Iniciar"
+        stopBtn = document.getElementById('stopBtn');       // Botón "Detener" 
+        status = document.getElementById('status');         // Área de mensajes de estado
+        cameraOff = document.getElementById('cameraOff');   // Mensaje cuando cámara está inactiva
+        results = document.getElementById('results');       // Contenedor de resultados
+        prediction = document.getElementById('prediction'); // Texto del nombre de fruta
+        confidence = document.getElementById('confidence'); // Texto del porcentaje de confianza
+        
+        // Verifica que los elementos existen
+        if (!video) throw new Error('Elementos DOM no encontrados');
+        
+        // Configura los eventos de los botones
+        if (startBtn) startBtn.addEventListener('click', startCamera); // Al hacer clic en "Iniciar"
+        if (stopBtn) stopBtn.addEventListener('click', stopCamera);   // Al hacer clic en "Detener"
+        
+        // Verifica que el navegador soporte cámara
+        if (!navigator.mediaDevices?.getUserMedia) {
+            throw new Error('Camara no soportada');
+        }
+        
+        // Inicializa TensorFlow.js (librería de inteligencia artificial)
+        await tf.ready();
+        
+        // Carga el modelo de clasificación de frutas
+        await loadModel();
+        
+        // Configura el estado inicial de los botones
+        updateButtons(false, true);
+        showStatus('Aplicacion lista', 'success');
+        
+    } catch (error) {
+        // Si hay algún error en la inicialización, lo muestra
+        console.error('Error inicializando:', error);
+        showStatus(`Error: ${error.message}`, 'error');
     }
-
-    // Cargar modelo
-    loadModel();
 }
 
-// Esperar a que el DOM esté completamente cargado
-document.addEventListener('DOMContentLoaded', initializeApp);
+// Ejecuta la inicialización cuando la página termine de cargar
+if (document.readyState === 'loading') {
+    // Si la página aún se está cargando, espera al evento DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', init);
+} else {
+    // Si ya terminó de cargar, ejecuta inmediatamente
+    init();
+}
