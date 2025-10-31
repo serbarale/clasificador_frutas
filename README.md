@@ -1,0 +1,17 @@
+## Clasificador de Frutas
+Clasificador de frutas mediante un Red Neuronal Convolocional entrenado para detectar frutas:
+- 'Manzana'
+- 'Plátano'
+- 'Carambola'
+- 'Guayaba'
+- 'Kiwi'
+- 'Mango'
+- 'Naranja'
+- 'Durazno'
+- 'Pera'
+- 'Caqui'
+- 'Pitaya'
+- 'Ciruela'
+- 'Granada'
+- 'Tomate'
+- 'Melón'
