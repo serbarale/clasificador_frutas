@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clasificador de Frutas</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="script.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>Clasificador de Frutas</h1>
+
+        <video id="video" autoplay playsinline style="display: none;"></video>
+        <div id="cameraOff" class="camera-off">
+            Cámara desactivada - Haz clic en "Iniciar Cámara"
+        </div>
+        
+        <!-- Canvas oculto para procesamiento del modelo -->
+        <canvas id="modelCanvas" width="320" height="258" style="display: none;"></canvas>
+
+
+        <div class="controls">
+            <button id="startBtn" class="btn btn-start">Iniciar Cámara</button>
+            <button id="detectBtn" class="btn btn-detect" disabled>Detectar Fruta</button>
+            <button id="stopBtn" class="btn btn-stop" disabled>Detener Cámara</button>
+        </div>
+
+        <div id="status" class="status"></div>
+        
+        <!-- Área de resultados -->
+        <div id="results" class="results" style="display: none;">
+            <h3>Resultado:</h3>
+            <div id="prediction" class="prediction"></div>
+            <div id="confidence" class="confidence"></div>
+        </div>
+    </div>
+</body>
+</html>
